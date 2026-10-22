@@ -1,98 +1,87 @@
 package org.ifad.portal.httpsclienttest;
 
-import javax.net.ssl.*;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
+import java.security.cert.CertificateException;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLPeerUnverifiedException;
 
-public class HttpsClientTest {
+/** Checks whether the current JVM accepts the eMudhra test certificate chains. */
+public final class HttpsClientTest {
+    private static final String[] DEFAULT_URLS = {
+        "https://dv-g3b-emudhra.we-have-a-problem.com/",
+        "https://dv-g3b-aaa-emudhra.we-have-a-problem.com/"
+    };
 
-    public static void main(String[] argo) {
-        if (argo.length < 1) {
-            System.out.println("The first parameter should be the tested URL");
+    private HttpsClientTest() {
+    }
+
+    public static void main(String[] args) {
+        if (args.length == 1 && ("--help".equals(args[0]) || "-h".equals(args[0]))) {
+            System.out.println("Usage: java -jar IFADHttpsClientTest.jar [https-url ...]");
+            System.out.println("With no URLs, checks the two eMudhra DV G3B test hosts.");
+            System.out.println("Exit: 0 = all certificates rejected, 1 = one or more trusted, 2 = connection/usage error.");
             return;
         }
 
-        String urlParam = argo[0];
-
-        try {
-            URL url = new URL(urlParam);
-
-            new HttpsClientTest().testTLS12(url);
-
-        } catch (MalformedURLException e) {
-            System.out.println("Malformed URL exception: '" + urlParam + "'");
-        } catch (IOException e) {
-            System.out.println("Something went wrong when processing the URL '" + urlParam + "'");
-            e.printStackTrace();
+        String[] urls = args.length == 0 ? DEFAULT_URLS : args;
+        boolean trusted = false;
+        boolean error = false;
+        if ("1.7".equals(System.getProperty("java.specification.version"))) {
+            // Java 7 supports TLS 1.2 but does not enable it by default for HTTPS.
+            System.setProperty("https.protocols", "TLSv1.2");
         }
-    }
+        System.out.println("Java: " + System.getProperty("java.runtime.version")
+                + " (" + System.getProperty("java.vendor") + ")");
 
-    void testTLS12(URL url) throws IOException {
-        URLConnection con = url.openConnection();
-
-        if (con instanceof HttpsURLConnection) {
-            System.out.println("Checking the URL: " + url);
-
-            System.setProperty("jdk.tls.client.protocols", "TLSv1.2");
-
-            disableSslVerification();
-
-            printHttpsCert((HttpsURLConnection) con);
-        } else {
-            System.out.println("The URL " + url + " is not HTTPS, skipping...");
-        }
-    }
-
-    private void printHttpsCert(HttpsURLConnection con) throws IOException {
-        System.out.println("Response Code : " + con.getResponseCode());
-        System.out.println("Cipher Suite : " + con.getCipherSuite());
-        System.out.println();
-
-        for (Certificate cert : con.getServerCertificates()) {
-            System.out.println("Cert Type : " + cert.getType());
-            System.out.println("Cert Hash Code : " + cert.hashCode());
-            System.out.println("Cert Public Key Algorithm : "
-                    + cert.getPublicKey().getAlgorithm());
-            System.out.println("Cert Public Key Format : "
-                    + cert.getPublicKey().getFormat());
-            System.out.println();
-        }
-    }
-
-    void disableSslVerification() {
-        try {
-            TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
-                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                    return null;
+        for (String address : urls) {
+            HttpsURLConnection connection = null;
+            try {
+                URL url = new URL(address);
+                if (!"https".equalsIgnoreCase(url.getProtocol())) {
+                    throw new IllegalArgumentException("HTTPS URL required");
                 }
-
-                public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                connection = (HttpsURLConnection) url.openConnection();
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
+                connection.setInstanceFollowRedirects(false);
+                int status = connection.getResponseCode();
+                System.out.println("TRUSTED  " + address + " (HTTP " + status + ")");
+                trusted = true;
+            } catch (IOException e) {
+                if (isCertificateFailure(e)) {
+                    System.out.println("REJECTED " + address + " (" + e.getMessage() + ")");
+                } else {
+                    System.out.println("ERROR    " + address + " (" + e + ")");
+                    error = true;
                 }
-
-                public void checkServerTrusted(X509Certificate[] certs, String authType) {
+            } catch (IllegalArgumentException e) {
+                System.out.println("ERROR    " + address + " (" + e.getMessage() + ")");
+                error = true;
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
                 }
             }
-            };
-
-            SSLContext sc = SSLContext.getInstance("TLSv1.2");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-
-            HostnameVerifier allHostsValid = new HostnameVerifier() {
-                public boolean verify(String hostname, SSLSession session) {
-                    return true;
-                }
-            };
-
-            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
-        } catch (NoSuchAlgorithmException | KeyManagementException e) {
-            e.printStackTrace();
         }
+
+        if (trusted) {
+            System.err.println("At least one compromised certificate chain was trusted.");
+            System.exit(1);
+        }
+        if (error) {
+            System.err.println("At least one check could not be completed.");
+            System.exit(2);
+        }
+        System.out.println("All certificate chains were rejected by this JVM.");
+    }
+
+    private static boolean isCertificateFailure(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof CertificateException || cause instanceof SSLPeerUnverifiedException) {
+                return true;
+            }
+        }
+        return false;
     }
 }

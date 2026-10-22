@@ -1,0 +1,79 @@
+name: CI and release
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Java 7 compatible JAR
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            -e GRADLE_USER_HOME=/workspace/.gradle azul-zulu:17 ./gradlew build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: java-ssl-client-test
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+  compatibility:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27']
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: java-ssl-client-test
+          path: dist
+      - name: Check certificates on Java ${{ matrix.java }}
+        env:
+          JAVA_VERSION: ${{ matrix.java }}
+        run: |
+          case "$JAVA_VERSION" in
+            8|11|17|21|25|26|27) image="azul-zulu:$JAVA_VERSION" ;;
+            # Historical feature releases are available in Azul's legacy image repository.
+            *) image="azul/zulu-openjdk:$JAVA_VERSION-latest" ;;
+          esac
+          jar=$(find dist -maxdepth 1 -name '*.jar' -print -quit)
+          test -n "$jar"
+          docker run --rm -v "$PWD/$jar:/app.jar:ro" "$image" java -jar /app.jar --help
+          set +e
+          docker run --rm -v "$PWD/$jar:/app.jar:ro" "$image" java -jar /app.jar
+          status=$?
+          set -e
+          case "$status" in
+            0) result=REJECTED ;;
+            1) result=TRUSTED ;;
+            2) result=INCONCLUSIVE ;;
+            *) exit "$status" ;;
+          esac
+          echo "Java $JAVA_VERSION ($image): $result" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -eq 2 ]; then exit 2; fi
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: compatibility
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: java-ssl-client-test
+          path: dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.jar --repo "$GITHUB_REPOSITORY" --generate-notes
