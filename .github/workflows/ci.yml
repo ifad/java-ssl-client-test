@@ -62,16 +62,25 @@ jobs:
           esac
           jar=$(find dist -maxdepth 1 -name '*.jar' -print -quit)
           test -n "$jar"
-          docker run --rm -v "$PWD/$jar:/app.jar:ro" "$image" java -jar /app.jar --help
           set +e
-          docker run --rm -v "$PWD/$jar:/app.jar:ro" "$image" java -jar /app.jar
+          smoke=$(docker run --rm -v "$PWD/$jar:/app.jar:ro" "$image" java -jar /app.jar --help 2>&1)
+          smoke_status=$?
+          set -e
+          printf '%s\n' "$smoke"
+          if [ "$smoke_status" -ne 0 ]; then
+            echo "::error::Docker smoke exit $smoke_status: ${smoke//$'\n'/ }"
+            exit "$smoke_status"
+          fi
+          set +e
+          output=$(docker run --rm -v "$PWD/$jar:/app.jar:ro" "$image" java -jar /app.jar 2>&1)
           status=$?
           set -e
+          printf '%s\n' "$output"
           case "$status" in
             0) result=REJECTED ;;
             1) result=TRUSTED ;;
             2) result=INCONCLUSIVE ;;
-            *) exit "$status" ;;
+            *) echo "::error::Docker exit $status: ${output//$'\n'/ }"; exit "$status" ;;
           esac
           echo "Java $JAVA_VERSION ($image): $result" >> "$GITHUB_STEP_SUMMARY"
           if [ "$status" -eq 2 ]; then exit 2; fi
