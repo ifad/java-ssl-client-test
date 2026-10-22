@@ -8,6 +8,15 @@ java -jar IFADHttpsClientTest-java8.jar https://dv-g3b-emudhra.we-have-a-problem
 
 Pass one or more HTTPS URLs; with none, it prints usage and exits 2. Each release has one JAR per Java version, `IFADHttpsClientTest-java<N>.jar` for N from 7 through 27. Use the JAR matching the JVM you want to assess.
 
+Behind a proxy, pass the standard JVM proxy properties:
+
+```sh
+java -Dhttps.proxyHost=serverproxy.foo.bar -Dhttps.proxyPort=3128 \
+  -jar IFADHttpsClientTest-java8.jar https://dv-g3b-emudhra.we-have-a-problem.com/
+```
+
+The JVM tunnels through the proxy with `CONNECT` and validates the target's certificate chain. A TLS-inspecting proxy that re-signs certificates defeats the check.
+
 `REJECTED` means Java rejected the certificate; `TRUSTED` means it completed an HTTPS request and accepted the certificate chain. `ERROR` means the check was inconclusive, for example because DNS, connectivity, or TLS negotiation failed. Exit codes are 0 when every URL was rejected, 1 when any URL was trusted, and 2 when no URL was trusted but at least one check was inconclusive. Java 7 uses TLS 1.2 explicitly so its default protocol selection does not prevent the certificate check.
 
 To build one JAR locally (default 7; Gradle 7.4 needs JDK 17 or older): `./gradlew build -PjavaVersion=11`.
