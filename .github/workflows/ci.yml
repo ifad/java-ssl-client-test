@@ -23,7 +23,9 @@ jobs:
         env:
           JAVA_VERSION: ${{ matrix.java }}
         run: |
+          # Java 27 is only published in Docker's official azul-zulu image.
           image="azul/zulu-openjdk:$JAVA_VERSION"
+          if [ "$JAVA_VERSION" = 27 ]; then image="azul-zulu:27"; fi
           jar="IFADHttpsClientTest-java$JAVA_VERSION.jar"
           case "$JAVA_VERSION" in
             7|8) target="-source $JAVA_VERSION -target $JAVA_VERSION" ;;

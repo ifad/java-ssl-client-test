@@ -12,6 +12,6 @@ Pass one or more HTTPS URLs; with none, it prints usage and exits 2. Each releas
 
 To build one JAR locally (default 7; Gradle 7.4 needs JDK 17 or older): `./gradlew build -PjavaVersion=11`.
 
-GitHub Actions builds each JAR with `javac` inside the matching `azul/zulu-openjdk:<N>` image, then runs the two eMudhra test URLs against it. A `TRUSTED` result is recorded but does not fail CI; an inconclusive check does. Pushing a `v*` tag, such as `v1.1.0`, creates a GitHub Release with all JARs after CI passes. The release workflow does not change the trust store on any machine.
+GitHub Actions builds each JAR with `javac` inside the matching `azul/zulu-openjdk:<N>` image (`azul-zulu:27` for Java 27), then runs the two eMudhra test URLs against it. A `TRUSTED` result is recorded but does not fail CI; an inconclusive check does. Pushing a `v*` tag, such as `v1.1.0`, creates a GitHub Release with all JARs after CI passes. The release workflow does not change the trust store on any machine.
 
 Some older Java versions use Azul's legacy `azul/zulu-openjdk` image repository. Azul says it will retire that repository by the end of 2026, so those CI images will need another source then.
