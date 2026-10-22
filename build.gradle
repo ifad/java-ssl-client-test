@@ -9,9 +9,11 @@ repositories {
     mavenCentral()
 }
 
+def javaTarget = findProperty('javaVersion') ?: '7'
+
 compileJava {
-    sourceCompatibility = '1.7'
-    targetCompatibility = '1.7'
+    sourceCompatibility = javaTarget
+    targetCompatibility = javaTarget
 }
 
 dependencies {
@@ -24,6 +26,7 @@ test {
 }
 
 jar {
+    archiveFileName = "${rootProject.name}-java${javaTarget}.jar"
     manifest {
         attributes 'Main-Class': 'org.ifad.portal.httpsclienttest.HttpsClientTest'
     }

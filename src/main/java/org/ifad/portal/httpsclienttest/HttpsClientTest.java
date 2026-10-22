@@ -6,25 +6,22 @@ import java.security.cert.CertificateException;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLPeerUnverifiedException;
 
-/** Checks whether the current JVM accepts the eMudhra test certificate chains. */
+/** Requests HTTPS URLs and reports whether the current JVM accepts their certificate chains. */
 public final class HttpsClientTest {
-    private static final String[] DEFAULT_URLS = {
-        "https://dv-g3b-emudhra.we-have-a-problem.com/",
-        "https://dv-g3b-aaa-emudhra.we-have-a-problem.com/"
-    };
-
     private HttpsClientTest() {
     }
 
     public static void main(String[] args) {
-        if (args.length == 1 && ("--help".equals(args[0]) || "-h".equals(args[0]))) {
-            System.out.println("Usage: java -jar IFADHttpsClientTest.jar [https-url ...]");
-            System.out.println("With no URLs, checks the two eMudhra DV G3B test hosts.");
+        if (args.length == 0 || (args.length == 1 && ("--help".equals(args[0]) || "-h".equals(args[0])))) {
+            System.out.println("Usage: java -jar IFADHttpsClientTest.jar https-url [https-url ...]");
             System.out.println("Exit: 0 = all certificates rejected, 1 = one or more trusted, 2 = connection/usage error.");
+            if (args.length == 0) {
+                System.exit(2);
+            }
             return;
         }
 
-        String[] urls = args.length == 0 ? DEFAULT_URLS : args;
+        String[] urls = args;
         boolean trusted = false;
         boolean error = false;
         if ("1.7".equals(System.getProperty("java.specification.version"))) {
