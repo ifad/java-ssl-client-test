@@ -43,6 +43,11 @@ jobs:
         run: |
           case "$JAVA_VERSION" in
             8|11|17|21|25|26|27) image="azul-zulu:$JAVA_VERSION" ;;
+            9) image="azul/zulu-openjdk:9u01-9.0.1.3" ;;
+            10) image="azul/zulu-openjdk:10u02-10.3" ;;
+            12) image="azul/zulu-openjdk:12.0.2-12.3" ;;
+            14) image="azul/zulu-openjdk:14.0.2-14.29.23" ;;
+            16) image="azul/zulu-openjdk:16.0.2-16.32.15" ;;
             # Historical feature releases are available in Azul's legacy image repository.
             *) image="azul/zulu-openjdk:$JAVA_VERSION-latest" ;;
           esac
